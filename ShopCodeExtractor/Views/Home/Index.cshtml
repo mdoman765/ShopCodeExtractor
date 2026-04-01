@@ -1,0 +1,18 @@
+﻿@model ShopCodeExtractor.Models.OcrResult
+
+<h2>Upload Image</h2>
+
+<form asp-action="Index" method="post" enctype="multipart/form-data">
+    <input type="file" name="file" />
+    <br /><br />
+    <button type="submit">Upload & Extract</button>
+</form>
+
+@if (Model != null)
+{
+    <h3>Extracted Text:</h3>
+    <pre>@Model.ExtractedText</pre>
+
+    <h3>Shop Code:</h3>
+    <b>@Model.ShopCode</b>
+}
