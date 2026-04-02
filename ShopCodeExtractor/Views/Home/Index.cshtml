@@ -1,18 +1,379 @@
 ﻿@model ShopCodeExtractor.Models.OcrResult
-
-<h2>Upload Image</h2>
-
-<form asp-action="Index" method="post" enctype="multipart/form-data">
-    <input type="file" name="file" />
-    <br /><br />
-    <button type="submit">Upload & Extract</button>
-</form>
-
-@if (Model != null)
-{
-    <h3>Extracted Text:</h3>
-    <pre>@Model.ExtractedText</pre>
-
-    <h3>Shop Code:</h3>
-    <b>@Model.ShopCode</b>
+@{
+    ViewData["Title"] = "Shop OCR Extractor";
 }
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shop OCR Extractor</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 15px;
+            background: #f4f5f7;
+            color: #222;
+        }
+
+        .container {
+            max-width: 750px;
+            margin: 40px auto;
+            padding: 0 16px 60px;
+        }
+
+        h1 {
+            font-size: 22px;
+            margin-bottom: 24px;
+            color: #111;
+        }
+
+        /* ── Card ── */
+        .card {
+            background: #fff;
+            border: 1px solid #dde1e7;
+            border-radius: 6px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+            .card h2 {
+                font-size: 13px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: .07em;
+                color: #666;
+                margin-bottom: 16px;
+                padding-bottom: 10px;
+                border-bottom: 1px solid #eee;
+            }
+
+        /* ── Form ── */
+        .file-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        input[type="file"] {
+            flex: 1;
+            padding: 8px 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #fafafa;
+            font-size: 14px;
+            min-width: 0;
+        }
+
+        button[type="submit"] {
+            padding: 9px 22px;
+            background: #1a73e8;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+            button[type="submit"]:hover {
+                background: #1558b0;
+            }
+
+            button[type="submit"]:disabled {
+                background: #93b8f5;
+                cursor: not-allowed;
+            }
+
+        /* ── Validation ── */
+        .validation-error {
+            background: #fff3f3;
+            border: 1px solid #f5c2c2;
+            border-radius: 4px;
+            padding: 10px 14px;
+            color: #c0392b;
+            font-size: 13px;
+            margin-bottom: 16px;
+        }
+
+        /* ── Shop Code ── */
+        .shop-code {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1a73e8;
+            letter-spacing: .04em;
+        }
+
+            .shop-code.not-found {
+                font-size: 16px;
+                color: #c0392b;
+                font-weight: 600;
+            }
+
+        /* ── Shop block (one per result) ── */
+        .shop-block {
+            border: 1px solid #e8eaed;
+            border-radius: 5px;
+            margin-bottom: 14px;
+            overflow: hidden;
+        }
+
+            .shop-block:last-child {
+                margin-bottom: 0;
+            }
+
+        .shop-block-header {
+            background: #f8f9fa;
+            padding: 10px 14px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #444;
+            border-bottom: 1px solid #e8eaed;
+        }
+
+        /* ── Details table ── */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+            table tr:not(:last-child) td {
+                border-bottom: 1px solid #f0f0f0;
+            }
+
+            table td {
+                padding: 10px 14px;
+                vertical-align: top;
+            }
+
+                table td:first-child {
+                    width: 130px;
+                    font-weight: 600;
+                    color: #555;
+                    white-space: nowrap;
+                }
+
+        .empty-val {
+            color: #aaa;
+            font-style: italic;
+        }
+
+        /* ── Alert ── */
+        .alert-error {
+            background: #fff3f3;
+            border: 1px solid #f5c2c2;
+            border-radius: 4px;
+            padding: 12px 14px;
+            color: #c0392b;
+            font-size: 14px;
+        }
+
+        /* ── API status badge ── */
+        .api-status {
+            display: inline-block;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 2px 10px;
+            border-radius: 20px;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+
+            .api-status.ok {
+                background: #e6f4ea;
+                color: #1e7e34;
+            }
+
+            .api-status.err {
+                background: #fce8e8;
+                color: #c0392b;
+            }
+
+        /* ── Raw text / JSON ── */
+        pre {
+            background: #f7f8fa;
+            border: 1px solid #dde1e7;
+            border-radius: 4px;
+            padding: 14px;
+            font-size: 12.5px;
+            line-height: 1.7;
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: 280px;
+            overflow-y: auto;
+            color: #333;
+        }
+
+        /* ── Toggle ── */
+        .toggle-link {
+            display: inline-block;
+            margin-bottom: 12px;
+            font-size: 13px;
+            color: #1a73e8;
+            cursor: pointer;
+            user-select: none;
+            text-decoration: underline;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+
+        <h1>Shop OCR Extractor</h1>
+
+        <!-- Validation errors -->
+        @if (!ViewData.ModelState.IsValid)
+        {
+            <div class="validation-error">
+                @Html.ValidationSummary(false)
+            </div>
+        }
+
+        <!-- ── Upload ── -->
+        <div class="card">
+            <h2>Upload Shop Image</h2>
+            <form asp-action="Index" method="post" enctype="multipart/form-data" id="uploadForm">
+                <div class="file-row">
+                    <input type="file" name="file" accept="image/*" required />
+                    <button type="submit" id="submitBtn">Extract &amp; Lookup</button>
+                </div>
+            </form>
+        </div>
+
+        @if (Model != null)
+        {
+            <!-- ── Shop Code ── -->
+            <div class="card">
+                <h2>Shop Code</h2>
+                @if (!string.IsNullOrEmpty(Model.ShopCode) && Model.ShopCode != "Not Found")
+                {
+                    <span class="shop-code">@Model.ShopCode</span>
+                }
+                else
+                {
+                    <span class="shop-code not-found">Not found in image</span>
+                }
+            </div>
+
+            <!-- ── Shop Details ── -->
+            <div class="card">
+                <h2>
+                    Shop Details
+                    @if (Model.ApiRawResponse != null)
+                    {
+                        if (Model.ApiRawResponse.status && Model.ShopDetails != null && Model.ShopDetails.Count > 0)
+                        {
+                            <span class="api-status ok">@Model.ShopDetails.Count result(s)</span>
+                        }
+                        else
+                        {
+                            <span class="api-status err">No results</span>
+                        }
+                    }
+                </h2>
+
+                @if (Model.ShopDetails != null && Model.ShopDetails.Count > 0)
+                {
+                    @for (int i = 0; i < Model.ShopDetails.Count; i++)
+                    {
+                        var shop = Model.ShopDetails[i];
+                        <div class="shop-block">
+                            <div class="shop-block-header">
+                                #@(i + 1) &nbsp; @(shop.site_name ?? "Unknown Shop")
+                            </div>
+                            <table>
+                                <tr>
+                                    <td>Shop Name</td>
+                                    <td>@(string.IsNullOrWhiteSpace(shop.site_name) ? Html.Raw("<span class='empty-val'>—</span>") : Html.Raw(Html.Encode(shop.site_name)))</td>
+                                </tr>
+                                <tr>
+                                    <td>Shop Code</td>
+                                    <td>@(string.IsNullOrWhiteSpace(shop.site_code) ? Html.Raw("<span class='empty-val'>—</span>") : Html.Raw(Html.Encode(shop.site_code)))</td>
+                                </tr>
+                                <tr>
+                                    <td>Owner</td>
+                                    <td>@(string.IsNullOrWhiteSpace(shop.site_ownm) ? Html.Raw("<span class='empty-val'>—</span>") : Html.Raw(Html.Encode(shop.site_ownm)))</td>
+                                </tr>
+                                <tr>
+                                    <td>Address</td>
+                                    <td>@(string.IsNullOrWhiteSpace(shop.site_adrs) ? Html.Raw("<span class='empty-val'>—</span>") : Html.Raw(Html.Encode(shop.site_adrs)))</td>
+                                </tr>
+                                <tr>
+                                    <td>Mobile</td>
+                                    <td>@(string.IsNullOrWhiteSpace(shop.site_mob1) ? Html.Raw("<span class='empty-val'>—</span>") : Html.Raw(Html.Encode(shop.site_mob1)))</td>
+                                </tr>
+                            </table>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="alert-error">
+                        @if (Model.ShopCode == "Not Found")
+                        {
+                            <span>No shop code was detected in the image — cannot query the API.</span>
+                        }
+                        else
+                        {
+                            <span>No shop found for code <strong>@Model.ShopCode</strong>.</span>
+                        }
+                    </div>
+                }
+            </div>
+
+            <!-- ── OCR Raw Text ── -->
+            <div class="card">
+                <h2>Extracted Text (OCR)</h2>
+                <span class="toggle-link" onclick="toggle('ocrBlock', this, 'Show raw text', 'Hide raw text')">Show raw text</span>
+                <div id="ocrBlock" class="hidden">
+                    <pre>@Model.ExtractedText</pre>
+                </div>
+            </div>
+
+            <!-- ── Raw API JSON ── -->
+            @if (Model.ApiRawResponse != null)
+            {
+                <div class="card">
+                    <h2>Raw API Response</h2>
+                    <span class="toggle-link" onclick="toggle('jsonBlock', this, 'Show JSON', 'Hide JSON')">Show JSON</span>
+                    <div id="jsonBlock" class="hidden">
+                        <pre>@Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                                                                                                                        Model.ApiRawResponse,
+                                                                                                                        new System.Text.Json.JsonSerializerOptions { WriteIndented = true }))</pre>
+            </div>
+        </div>
+                }
+        }
+
+    </div>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', function () {
+            var btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+            btn.textContent = 'Processing…';
+        });
+
+        function toggle(id, link, showLabel, hideLabel) {
+            var el = document.getElementById(id);
+            var isHidden = el.classList.contains('hidden');
+            el.classList.toggle('hidden');
+            link.textContent = isHidden ? hideLabel : showLabel;
+        }
+    </script>
+</body>
+</html>
